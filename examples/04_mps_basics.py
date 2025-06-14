@@ -5,7 +5,7 @@ import os
 # Adjust path to import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.tensor_network import MPS, COMPLEX_DTYPE as SRC_COMPLEX_DTYPE
+from torchqpt.tensor_network import MPS, COMPLEX_DTYPE as SRC_COMPLEX_DTYPE
 
 # Use a consistent COMPLEX_DTYPE, preferably from a central source
 COMPLEX_DTYPE = SRC_COMPLEX_DTYPE

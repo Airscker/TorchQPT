@@ -6,7 +6,7 @@ import os
 # Adjust sys.path to allow importing from the src directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from states import QuantumStateVector, DensityMatrix
+from torchqpt.states import QuantumStateVector, DensityMatrix
 
 COMPLEX_DTYPE = torch.complex64
 REAL_DTYPE = torch.float32 # Corresponding real dtype for complex64

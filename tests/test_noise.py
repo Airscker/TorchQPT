@@ -7,13 +7,16 @@ import numpy as np # For np.sqrt, used in constructing expected values
 # Adjust sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from noise import (
+from torchqpt.noise import (
     pauli_channel,
     depolarizing_channel,
     amplitude_damping_channel,
     phase_damping_channel,
-    COMPLEX_DTYPE, # Import COMPLEX_DTYPE from noise.py
-    _I, _X, _Y, _Z # Import helper Pauli matrices from noise.py
+    COMPLEX_DTYPE,  # Import COMPLEX_DTYPE from noise.py
+    _I,
+    _X,
+    _Y,
+    _Z,  # Import helper Pauli matrices from noise.py
 )
 
 # --- Helper Function ---

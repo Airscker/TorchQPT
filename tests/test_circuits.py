@@ -7,9 +7,9 @@ import numpy as np
 # Adjust sys.path to allow importing from the src directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from circuits import QuantumCircuit
-from gates import X, CNOT, COMPLEX_DTYPE as GATE_COMPLEX_DTYPE
-from noise import depolarizing_channel
+from torchqpt.circuits import QuantumCircuit
+from torchqpt.gates import X, CNOT, COMPLEX_DTYPE as GATE_COMPLEX_DTYPE
+from torchqpt.noise import depolarizing_channel
 
 # Use the COMPLEX_DTYPE from the gates module for consistency
 COMPLEX_DTYPE = GATE_COMPLEX_DTYPE

@@ -7,11 +7,19 @@ import math
 # Adjust sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from circuits import QuantumCircuit
-from states import QuantumStateVector, DensityMatrix
-from gates import X, H, CNOT, Z, Y
-from noise import depolarizing_channel, amplitude_damping_channel, phase_damping_channel
-from simulation import CircuitSimulator, _get_full_operator, _create_permutation_operator
+from torchqpt.circuits import QuantumCircuit
+from torchqpt.states import QuantumStateVector, DensityMatrix
+from torchqpt.gates import X, H, CNOT, Z, Y
+from torchqpt.noise import (
+    depolarizing_channel,
+    amplitude_damping_channel,
+    phase_damping_channel,
+)
+from torchqpt.simulation import (
+    CircuitSimulator,
+    _get_full_operator,
+    _create_permutation_operator,
+)
 
 COMPLEX_DTYPE = torch.complex64
 

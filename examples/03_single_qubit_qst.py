@@ -5,13 +5,17 @@ import os
 # Adjust path to import from src
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.states import DensityMatrix, QuantumStateVector
-from src.tomography import (
+from torchqpt.states import DensityMatrix, QuantumStateVector
+from torchqpt.tomography import (
     get_basis_projectors_single_qubit,
     simulate_measurement_probabilities,
-    qst_linear_inversion_single_qubit
+    qst_linear_inversion_single_qubit,
 )
-from src.gates import H, S, COMPLEX_DTYPE as SRC_COMPLEX_DTYPE # For creating interesting states
+from torchqpt.gates import (
+    H,
+    S,
+    COMPLEX_DTYPE as SRC_COMPLEX_DTYPE,
+)  # For creating interesting states
 
 # Use a consistent COMPLEX_DTYPE, preferably from a central source like gates or states
 COMPLEX_DTYPE = SRC_COMPLEX_DTYPE

@@ -7,10 +7,10 @@ import os
 # If run from the root 'pytorch_pastaq' directory, 'src.' imports would work directly.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.states import QuantumStateVector
-from src.circuits import QuantumCircuit
-from src.gates import H, CNOT
-from src.simulation import CircuitSimulator
+from torchqpt.states import QuantumStateVector
+from torchqpt.circuits import QuantumCircuit
+from torchqpt.gates import H, CNOT
+from torchqpt.simulation import CircuitSimulator
 
 def main():
     """Demonstrates basic quantum circuit simulation for state vectors,

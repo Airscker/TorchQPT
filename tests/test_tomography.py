@@ -9,20 +9,20 @@ from typing import Dict, List
 # Adjust sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from tomography import (
+from torchqpt.tomography import (
     qst_linear_inversion_single_qubit,
     qst_linear_inversion_multi_qubit,
     get_pauli_operator,
     get_basis_projectors_single_qubit,
     simulate_measurement_probabilities,
-    COMPLEX_DTYPE, # Use COMPLEX_DTYPE from tomography.py
+    COMPLEX_DTYPE,  # Use COMPLEX_DTYPE from tomography.py
     # For single-qubit tests, tomography.py defines I_MATRIX, X_MATRIX etc.
     I_MATRIX as I_1Q,
     X_MATRIX as X_1Q,
     Y_MATRIX as Y_1Q,
-    Z_MATRIX as Z_1Q
+    Z_MATRIX as Z_1Q,
 )
-from states import DensityMatrix, QuantumStateVector # For creating test states
+from torchqpt.states import DensityMatrix, QuantumStateVector  # For creating test states
 
 # Helper Pauli map for get_pauli_operator tests (matches tomography.py internal)
 _PAULI_MAP_SINGLE_QUBIT_TEST = {

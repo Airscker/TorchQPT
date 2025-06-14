@@ -7,10 +7,24 @@ import os
 # Adjust sys.path to allow importing from the src directory
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from gates import (
-    H, X, Y, Z, S, Sdg, T, Tdg, P,
-    Rx, Ry, Rz,
-    CNOT, CZ, SWAP, CRz, COMPLEX_DTYPE as GATE_COMPLEX_DTYPE # Import COMPLEX_DTYPE from gates
+from torchqpt.gates import (
+    H,
+    X,
+    Y,
+    Z,
+    S,
+    Sdg,
+    T,
+    Tdg,
+    P,
+    Rx,
+    Ry,
+    Rz,
+    CNOT,
+    CZ,
+    SWAP,
+    CRz,
+    COMPLEX_DTYPE as GATE_COMPLEX_DTYPE,  # Import COMPLEX_DTYPE from gates
 )
 
 # Use the COMPLEX_DTYPE from the gates module for consistency

@@ -6,7 +6,10 @@ import os
 # Adjust sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
-from tensor_network import MPS, COMPLEX_DTYPE # Use COMPLEX_DTYPE from tensor_network.py
+from torchqpt.tensor_network import (
+    MPS,
+    COMPLEX_DTYPE,
+)  # Use COMPLEX_DTYPE from tensor_network.py
 
 # Helper to check if CUDA is available and skip tests if not
 CUDA_AVAILABLE = torch.cuda.is_available()

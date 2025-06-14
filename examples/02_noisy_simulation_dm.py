@@ -6,11 +6,11 @@ import os
 # This assumes the script is run from the 'examples' directory.
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.states import QuantumStateVector, DensityMatrix
-from src.circuits import QuantumCircuit
-from src.gates import H, X
-from src.noise import depolarizing_channel
-from src.simulation import CircuitSimulator
+from torchqpt.states import QuantumStateVector, DensityMatrix
+from torchqpt.circuits import QuantumCircuit
+from torchqpt.gates import H, X
+from torchqpt.noise import depolarizing_channel
+from torchqpt.simulation import CircuitSimulator
 
 def main():
     """Demonstrates quantum circuit simulation with noise, leading to density matrix representation."""
