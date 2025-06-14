@@ -249,50 +249,134 @@ def test_qst_multi_invalid_num_qubits():
 # Thus, a specific "key length mismatch" test against qst_linear_inversion_multi_qubit is not straightforward
 # unless we modify its logic to validate input keys beyond just using .get().
 # The current design is robust to extra keys in measurement_data.
-# It's more about *missing* keys, which are handled by defaulting to expectation 0.The file `pytorch_pastaq/tests/test_tomography.py` has been successfully created with the comprehensive unit tests.
+# It's more about *missing* keys, which are handled by defaulting to expectation 0.
 
-'''
-**Summary of Test Implementation:**
+def test_get_basis_projectors_single_qubit():
+    # Test Z basis
+    P_0, P_1 = get_basis_projectors_single_qubit("Z")
+    assert P_0.shape == (2, 2)
+    assert P_1.shape == (2, 2)
+    assert torch.allclose(P_0, torch.tensor([[1, 0], [0, 0]], dtype=torch.cfloat))
+    assert torch.allclose(P_1, torch.tensor([[0, 0], [0, 1]], dtype=torch.cfloat))
 
-1.  **Setup**:
-    *   Standard imports (`torch`, `pytest`, `sys`, `os`, `itertools`, `numpy`).
-    *   Path adjustment for importing from `src`.
-    *   Imports all relevant functions and classes from `pytorch_pastaq.src.tomography` and `pytorch_pastaq.src.states`.
-    *   Uses `COMPLEX_DTYPE` from `tomography.py` and local definitions for single-qubit Pauli matrices for consistency within tests.
+    # Test X basis
+    P_0, P_1 = get_basis_projectors_single_qubit("X")
+    assert P_0.shape == (2, 2)
+    assert P_1.shape == (2, 2)
+    assert torch.allclose(P_0 @ P_0, P_0)  # Projector property
+    assert torch.allclose(P_1 @ P_1, P_1)  # Projector property
+    assert torch.allclose(P_0 + P_1, torch.eye(2, dtype=torch.cfloat))  # Completeness
 
-2.  **`get_pauli_operator()` Tests**:
-    *   `test_get_pauli_operator_single()`: Verifies "I", "X", "Y", "Z".
-    *   `test_get_pauli_operator_multi()`: Verifies "IX", "XYZ" against `torch.kron` results.
-    *   `test_get_pauli_operator_invalid_char()`: Ensures `ValueError` for invalid characters.
-    *   `test_get_pauli_operator_empty_string()`: Ensures `ValueError` for empty input.
-    *   `test_get_pauli_operator_device_dtype()`: Checks correct device and dtype propagation.
+    # Test Y basis
+    P_0, P_1 = get_basis_projectors_single_qubit("Y")
+    assert P_0.shape == (2, 2)
+    assert P_1.shape == (2, 2)
+    assert torch.allclose(P_0 @ P_0, P_0)  # Projector property
+    assert torch.allclose(P_1 @ P_1, P_1)  # Projector property
+    assert torch.allclose(P_0 + P_1, torch.eye(2, dtype=torch.cfloat))  # Completeness
 
-3.  **`get_basis_projectors_single_qubit()` Tests**:
-    *   Tests for "X", "Y", "Z" bases, verifying the projector matrices.
-    *   Checks that `P0 + P1 = Identity`.
-    *   `test_get_projectors_invalid_basis()`: Ensures `ValueError` for unknown basis strings.
+    # Test invalid basis
+    with pytest.raises(ValueError):
+        get_basis_projectors_single_qubit("invalid")
 
-4.  **`simulate_measurement_probabilities()` Tests**:
-    *   `test_sim_meas_pure_states()`: Simulates measurements on pure states (e.g., `|0><0|` in Z-basis, `|+><+|` in X-basis, `|+><+|` in Z-basis) and checks for correct probability distributions.
-    *   `test_sim_meas_maximally_mixed()`: Verifies that for a maximally mixed state, probabilities are `[0.5, 0.5]` in all bases.
+def test_simulate_measurement_probabilities():
+    # Test with |0⟩ state
+    state = torch.tensor([[1, 0], [0, 0]], dtype=torch.cfloat)
+    P_0, P_1 = get_basis_projectors_single_qubit("Z")
+    probs = simulate_measurement_probabilities(state, (P_0, P_1))
+    assert len(probs) == 2
+    assert np.isclose(probs[0], 1.0)
+    assert np.isclose(probs[1], 0.0)
 
-5.  **`qst_linear_inversion_single_qubit()` Tests**:
-    *   A helper `generate_probs_for_qst()` is defined to create ideal measurement data from a given density matrix tensor.
-    *   `test_qst_single_pure_states()`: Parameterized test that reconstructs various pure states (`|0>`, `|1>`, `|+>`, `|->`, `|+i>`, `|-i>`) and compares with the original.
-    *   `test_qst_single_mixed_state()`: Tests reconstruction of a specific mixed state.
-    *   `test_qst_single_maximally_mixed()`: Tests reconstruction of the maximally mixed state.
-    *   `test_qst_single_invalid_data()`: Checks `ValueError` for missing basis keys, probabilities not summing to 1, or probabilities out of range.
+    # Test with |+⟩ state
+    state = torch.tensor([[0.5, 0.5], [0.5, 0.5]], dtype=torch.cfloat)
+    P_0, P_1 = get_basis_projectors_single_qubit("X")
+    probs = simulate_measurement_probabilities(state, (P_0, P_1))
+    assert len(probs) == 2
+    assert np.isclose(probs[0], 1.0)
+    assert np.isclose(probs[1], 0.0)
 
-6.  **`qst_linear_inversion_multi_qubit()` Tests**:
-    *   A helper `generate_pauli_expectations()` is defined to create ideal Pauli expectation value data from a given multi-qubit density matrix.
-    *   `test_qst_multi_pure_product_state_00()`: Reconstructs a 2-qubit product state `|00><00|`.
-    *   `test_qst_multi_maximally_mixed()`: Reconstructs a 2-qubit maximally mixed state, ensuring non-identity Pauli expectations are zero.
-    *   `test_qst_multi_bell_state()`: Reconstructs a Bell state `(|00>+|11>)/sqrt(2)`, verifying key Pauli expectation values (`<XX>`, `<YY>`, `<ZZ>`).
-    *   `test_qst_multi_invalid_num_qubits()`: Ensures `ValueError` for `num_qubits=0`.
+    # Test invalid input
+    with pytest.raises(ValueError):
+        simulate_measurement_probabilities(torch.eye(3, dtype=torch.cfloat), (P_0, P_1))
 
-The test suite is comprehensive, covering individual components and the main QST functions for both single and multi-qubit cases with various state types and validation checks.
-All requirements for this subtask have been met. I will now submit the report.
-'''
+def test_qst_linear_inversion_single_qubit():
+    # Test reconstruction of |0⟩ state
+    measurement_data = {
+        "X": [0.5, 0.5],
+        "Y": [0.5, 0.5],
+        "Z": [1.0, 0.0]
+    }
+    rho = qst_linear_inversion_single_qubit(measurement_data)
+    assert isinstance(rho, DensityMatrix)
+    assert rho.num_qubits == 1
+    expected = torch.tensor([[1, 0], [0, 0]], dtype=torch.cfloat)
+    assert torch.allclose(rho.density_matrix, expected)
+
+    # Test reconstruction of |+⟩ state
+    measurement_data = {
+        "X": [1.0, 0.0],
+        "Y": [0.5, 0.5],
+        "Z": [0.5, 0.5]
+    }
+    rho = qst_linear_inversion_single_qubit(measurement_data)
+    assert isinstance(rho, DensityMatrix)
+    assert rho.num_qubits == 1
+    expected = torch.tensor([[0.5, 0.5], [0.5, 0.5]], dtype=torch.cfloat)
+    assert torch.allclose(rho.density_matrix, expected)
+
+    # Test invalid input
+    with pytest.raises(ValueError):
+        qst_linear_inversion_single_qubit({"X": [0.5, 0.5]})  # Missing Y and Z
+
+def test_get_pauli_operator():
+    # Test single-qubit operators
+    assert torch.allclose(get_pauli_operator("I"), torch.eye(2, dtype=torch.cfloat))
+    assert torch.allclose(get_pauli_operator("X"), torch.tensor([[0, 1], [1, 0]], dtype=torch.cfloat))
+    assert torch.allclose(get_pauli_operator("Y"), torch.tensor([[0, -1j], [1j, 0]], dtype=torch.cfloat))
+    assert torch.allclose(get_pauli_operator("Z"), torch.tensor([[1, 0], [0, -1]], dtype=torch.cfloat))
+
+    # Test two-qubit operators
+    IX = get_pauli_operator("IX")
+    assert IX.shape == (4, 4)
+    assert torch.allclose(IX, torch.kron(torch.eye(2, dtype=torch.cfloat),
+                                       torch.tensor([[0, 1], [1, 0]], dtype=torch.cfloat)))
+
+    # Test invalid input
+    with pytest.raises(ValueError):
+        get_pauli_operator("")
+
+    with pytest.raises(ValueError):
+        get_pauli_operator("A")  # Invalid Pauli character
+
+def test_qst_linear_inversion_multi_qubit():
+    # Test reconstruction of |00⟩ state
+    measurement_data = {
+        "IX": 0.0,
+        "XI": 0.0,
+        "XX": 0.0,
+        "IY": 0.0,
+        "YI": 0.0,
+        "YY": 0.0,
+        "IZ": 1.0,
+        "ZI": 1.0,
+        "ZZ": 1.0
+    }
+    rho = qst_linear_inversion_multi_qubit(measurement_data, num_qubits=2)
+    assert isinstance(rho, DensityMatrix)
+    assert rho.num_qubits == 2
+    expected = torch.tensor([[1, 0, 0, 0],
+                           [0, 0, 0, 0],
+                           [0, 0, 0, 0],
+                           [0, 0, 0, 0]], dtype=torch.cfloat)
+    assert torch.allclose(rho.density_matrix, expected)
+
+    # Test invalid input
+    with pytest.raises(ValueError):
+        qst_linear_inversion_multi_qubit(measurement_data, num_qubits=0)
+
+    with pytest.raises(TypeError):
+        qst_linear_inversion_multi_qubit({"IX": "invalid"}, num_qubits=2)
 
 if __name__ == "__main__":
     # Run all tests using pytest

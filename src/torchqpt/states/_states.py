@@ -19,7 +19,7 @@ class QuantumStateVector:
                                      Shape is (2**num_qubits,).
     """
     def __init__(self,
-                 num_qubits: int,
+                 num_qubits: int = None,
                  initial_state_tensor: Optional[torch.Tensor] = None,
                  device: Union[str, torch.device] = 'cpu'):
         """Initializes a QuantumStateVector.

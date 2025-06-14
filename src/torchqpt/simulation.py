@@ -4,11 +4,11 @@ import math
 
 # Attempt to import from local project structure
 try:
-    from .circuits import QuantumCircuit
+    from .circuits._circuits import QuantumCircuit
     from .states import QuantumStateVector, DensityMatrix
 except ImportError:
     # Fallback for environments where the . notation doesn't work as expected
-    from circuits import QuantumCircuit
+    from Tomography.TorchQPT.src.torchqpt.circuits._circuits import QuantumCircuit
     from states import QuantumStateVector, DensityMatrix
 
 def _create_permutation_operator(num_qubits: int, qubit_map: List[int], dtype: torch.dtype, device: torch.device) -> torch.Tensor:

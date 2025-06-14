@@ -54,21 +54,19 @@ def get_basis_projectors_single_qubit(basis: str, device: Union[str, torch.devic
         ValueError: If an unknown `basis` string is provided.
     """
     dev = torch.device(device)
-    # Ensure SQRT_HALF is on the correct device and dtype before multiplication
-    sqrt_half_dev = SQRT_HALF.to(device=dev, dtype=COMPLEX_DTYPE_REAL_PART if COMPLEX_DTYPE.is_complex else COMPLEX_DTYPE)
-
+    sqrt_half = torch.tensor(1.0 / np.sqrt(2.0), dtype=torch.float32, device=dev)
 
     if basis == "Z":
         P_0 = torch.tensor([[1, 0], [0, 0]], dtype=COMPLEX_DTYPE, device=dev)
         P_1 = torch.tensor([[0, 0], [0, 1]], dtype=COMPLEX_DTYPE, device=dev)
     elif basis == "X":
-        plus_state = sqrt_half_dev * torch.tensor([1, 1], dtype=COMPLEX_DTYPE).to(dev)
-        minus_state = sqrt_half_dev * torch.tensor([1, -1], dtype=COMPLEX_DTYPE).to(dev)
+        plus_state = sqrt_half * torch.tensor([1, 1], dtype=COMPLEX_DTYPE).to(dev)
+        minus_state = sqrt_half * torch.tensor([1, -1], dtype=COMPLEX_DTYPE).to(dev)
         P_0 = torch.outer(plus_state, plus_state.conj())
         P_1 = torch.outer(minus_state, minus_state.conj())
     elif basis == "Y":
-        plus_i_state = sqrt_half_dev * torch.tensor([1, 1j], dtype=COMPLEX_DTYPE).to(dev)
-        minus_i_state = sqrt_half_dev * torch.tensor([1, -1j], dtype=COMPLEX_DTYPE).to(dev)
+        plus_i_state = sqrt_half * torch.tensor([1, 1j], dtype=COMPLEX_DTYPE).to(dev)
+        minus_i_state = sqrt_half * torch.tensor([1, -1j], dtype=COMPLEX_DTYPE).to(dev)
         P_0 = torch.outer(plus_i_state, plus_i_state.conj())
         P_1 = torch.outer(minus_i_state, minus_i_state.conj())
     else:
@@ -170,7 +168,7 @@ def qst_linear_inversion_single_qubit(measurement_data: Dict[str, List[float]],
     return DensityMatrix(num_qubits=1, initial_density_matrix_tensor=rho_tensor, device=dev)
 
 
-def get_pauli_operator(pauli_string: str, device: Union[str, torch.device] ='cpu', dtype: torch.dtype = COMPLEX_DTYPE) -> torch.Tensor:
+def get_pauli_operator(pauli_string: str, device: Union[str, torch.device] = 'cpu', dtype: torch.dtype = COMPLEX_DTYPE) -> torch.Tensor:
     """
     Constructs a multi-qubit Pauli operator as a tensor product of single-qubit Pauli matrices.
 

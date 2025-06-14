@@ -1,8 +1,9 @@
 import torch
-from typing import List
+from typing import List, Tuple, Union, Optional, Dict, Any
 import numpy as np # For np.sqrt, though torch.sqrt(torch.tensor(x)) is used
+from .gates import COMPLEX_DTYPE
+from .circuits import QuantumCircuit
 
-COMPLEX_DTYPE = torch.complex64
 REAL_DTYPE = torch.tensor(0., dtype=COMPLEX_DTYPE).real.dtype # Derived real dtype
 
 # Helper Pauli matrices (internal use, simple docstrings or comments suffice)
@@ -68,96 +69,123 @@ def pauli_channel(px: float, py: float, pz: float) -> List[torch.Tensor]:
     return [K_I, K_X, K_Y, K_Z]
 
 
-def depolarizing_channel(p: float) -> List[torch.Tensor]:
+def depolarizing_channel(p: float, device: Union[str, torch.device] = 'cpu') -> List[torch.Tensor]:
     """
-    Generates Kraus operators for a single-qubit depolarizing channel.
-
-    This channel describes a process where, with probability `p`, the qubit's
-    state is randomized to the maximally mixed state (I/2). Equivalently,
-    with probability `p`, one of X, Y, or Z errors occurs with equal likelihood (p/3).
-    The Kraus operators are:
-    K_0 = sqrt(1-p) * I
-    K_1 = sqrt(p/3) * X
-    K_2 = sqrt(p/3) * Y
-    K_3 = sqrt(p/3) * Z
-
+    Generate Kraus operators for the depolarizing channel.
+    
     Args:
-        p (float): The probability of depolarization (0 <= p <= 1).
-
+        p (float): Error probability
+        device (Union[str, torch.device]): Device to place tensors on
+        
     Returns:
-        List[torch.Tensor]: A list of four Kraus operators [K_0, K_1, K_2, K_3],
-                            all 2x2 torch.Tensors with COMPLEX_DTYPE.
-
-    Raises:
-        ValueError: If the depolarizing probability `p` is not in the range [0,1].
+        List[torch.Tensor]: List of Kraus operators
     """
-    if not (0 <= p <= 1.000001): # Allow for small floating point inaccuracies
-        raise ValueError(f"Depolarizing probability p ({p}) must be between 0 and 1.")
-    p = min(max(0.0, p), 1.0) # Clamp p to [0,1] after check to handle precision issues for sqrt
+    dev = torch.device(device)
+    sqrt_p = torch.sqrt(torch.tensor(p/3, device=dev))
+    
+    # Identity operator
+    K0 = torch.sqrt(torch.tensor(1 - p, device=dev)) * torch.eye(2, device=dev)
+    
+    # Pauli operators
+    K1 = sqrt_p * torch.tensor([[0, 1], [1, 0]], dtype=COMPLEX_DTYPE, device=dev)  # X
+    K2 = sqrt_p * torch.tensor([[0, -1j], [1j, 0]], dtype=COMPLEX_DTYPE, device=dev)  # Y
+    K3 = sqrt_p * torch.tensor([[1, 0], [0, -1]], dtype=COMPLEX_DTYPE, device=dev)  # Z
+    
+    return [K0, K1, K2, K3]
 
-    K_0 = torch.sqrt(torch.tensor(1.0 - p, dtype=REAL_DTYPE)) * _I()
-    K_1 = torch.sqrt(torch.tensor(p / 3.0, dtype=REAL_DTYPE)) * _X()
-    K_2 = torch.sqrt(torch.tensor(p / 3.0, dtype=REAL_DTYPE)) * _Y()
-    K_3 = torch.sqrt(torch.tensor(p / 3.0, dtype=REAL_DTYPE)) * _Z()
 
-    return [K_0, K_1, K_2, K_3]
-
-
-def amplitude_damping_channel(gamma: float) -> List[torch.Tensor]:
+def amplitude_damping_channel(gamma: float, device: Union[str, torch.device] = 'cpu') -> List[torch.Tensor]:
     """
-    Generates Kraus operators for an amplitude damping channel (e.g., T1 decay).
-
-    This channel models the loss of energy from a qubit state, e.g., the decay
-    of |1> to |0> with probability `gamma`.
-    The Kraus operators are:
-    K_0 = [[1, 0], [0, sqrt(1-gamma)]]
-    K_1 = [[0, sqrt(gamma)], [0, 0]]
-
+    Generate Kraus operators for the amplitude damping channel.
+    
     Args:
-        gamma (float): The probability of a qubit losing excitation (0 <= gamma <= 1).
-
+        gamma (float): Damping rate
+        device (Union[str, torch.device]): Device to place tensors on
+        
     Returns:
-        List[torch.Tensor]: A list of two Kraus operators [K_0, K_1],
-                            all 2x2 torch.Tensors with COMPLEX_DTYPE.
-
-    Raises:
-        ValueError: If the damping probability `gamma` is not in the range [0,1].
+        List[torch.Tensor]: List of Kraus operators
     """
-    if not (0 <= gamma <= 1.000001): # Allow for small floating point inaccuracies
-        raise ValueError(f"Damping probability gamma ({gamma}) must be between 0 and 1.")
-    gamma = min(max(0.0, gamma), 1.0) # Clamp gamma to [0,1] for sqrt
+    dev = torch.device(device)
+    
+    # Main operator
+    K0 = torch.tensor([[1, 0], [0,np.sqrt(1 - gamma)]], dtype=COMPLEX_DTYPE, device=dev)
+    
+    # Damping operator
+    K1 = torch.tensor([[0, np.sqrt(gamma)], [0, 0]], dtype=COMPLEX_DTYPE, device=dev)
+    
+    return [K0, K1]
 
-    K_0 = torch.tensor([[1, 0], [0, torch.sqrt(torch.tensor(1.0 - gamma, dtype=REAL_DTYPE))]], dtype=COMPLEX_DTYPE)
-    K_1 = torch.tensor([[0, torch.sqrt(torch.tensor(gamma, dtype=REAL_DTYPE))], [0, 0]], dtype=COMPLEX_DTYPE)
 
-    return [K_0, K_1]
-
-
-def phase_damping_channel(gamma: float) -> List[torch.Tensor]:
+def phase_damping_channel(gamma: float, device: Union[str, torch.device] = 'cpu') -> List[torch.Tensor]:
     """
-    Generates Kraus operators for a phase damping channel (pure dephasing).
-
-    This channel models the loss of phase coherence without loss of energy.
-    It's equivalent to applying a Pauli-Z error with probability `gamma`.
-    The Kraus operators are:
-    K_0 = sqrt(1-gamma) * I
-    K_1 = sqrt(gamma) * Z
-
+    Generate Kraus operators for the phase damping channel.
+    
     Args:
-        gamma (float): The probability of a phase error (Z error) occurring (0 <= gamma <= 1).
-
+        gamma (float): Damping rate
+        device (Union[str, torch.device]): Device to place tensors on
+        
     Returns:
-        List[torch.Tensor]: A list of two Kraus operators [K_0, K_1],
-                            all 2x2 torch.Tensors with COMPLEX_DTYPE.
-
-    Raises:
-        ValueError: If the dephasing probability `gamma` is not in the range [0,1].
+        List[torch.Tensor]: List of Kraus operators
     """
-    if not (0 <= gamma <= 1.000001): # Allow for small floating point inaccuracies
-        raise ValueError(f"Dephasing probability gamma ({gamma}) must be between 0 and 1.")
-    gamma = min(max(0.0, gamma), 1.0) # Clamp gamma to [0,1] for sqrt
+    dev = torch.device(device)
+    
+    # Main operator
+    K0 = torch.tensor([[1, 0], [0, np.sqrt(1 - gamma)]], dtype=COMPLEX_DTYPE, device=dev)
+    
+    # Damping operator
+    K1 = torch.tensor([[0, 0], [0, np.sqrt(gamma)]], dtype=COMPLEX_DTYPE, device=dev)
+    
+    return [K0, K1]
 
-    K_0 = torch.sqrt(torch.tensor(1.0 - gamma, dtype=REAL_DTYPE)) * _I()
-    K_1 = torch.sqrt(torch.tensor(gamma, dtype=REAL_DTYPE)) * _Z()
-
-    return [K_0, K_1]
+def add_noise_to_circuit(circuit: QuantumCircuit, noise_model: Dict[int, Tuple[str, Dict[str, float]]]) -> QuantumCircuit:
+    """
+    Add noise to a quantum circuit.
+    
+    Args:
+        circuit (QuantumCircuit): The quantum circuit to add noise to
+        noise_model (Dict[int, Tuple[str, Dict[str, float]]]): Noise model specification
+            Format: {n_qubits: (noise_type, params)}
+            Example: {1: ('depolarizing', {'p': 0.1}), 2: ('depolarizing', {'p': 0.2})}
+            
+    Returns:
+        QuantumCircuit: A new circuit with noise gates inserted after each operation
+    """
+    from .circuits import QuantumCircuit
+    
+    # Create a new circuit with the same number of qubits
+    noisy_circuit = QuantumCircuit(circuit.num_qubits)
+    
+    # Copy all operations from the original circuit
+    for op in circuit.operations:
+        # Add the original operation
+        noisy_circuit.add_operation(op[0], op[1], op[2])
+        
+        # Get number of qubits the operation acts on
+        if isinstance(op[1], tuple):
+            n_qubits = len(op[1])
+        else:
+            n_qubits = 1
+            
+        # Check if we have a noise model for this gate size
+        if n_qubits in noise_model:
+            noise_type, params = noise_model[n_qubits]
+            
+            # Generate Kraus operators based on noise type
+            if noise_type == 'depolarizing':
+                kraus_ops = depolarizing_channel(params['p'], device=circuit.device)
+            elif noise_type == 'amplitude_damping':
+                kraus_ops = amplitude_damping_channel(params['gamma'], device=circuit.device)
+            elif noise_type == 'phase_damping':
+                kraus_ops = phase_damping_channel(params['gamma'], device=circuit.device)
+            else:
+                raise ValueError(f"Unknown noise type: {noise_type}")
+                
+            # Add noise channel after the operation
+            if n_qubits > 1:
+                # For multi-qubit gates, apply noise to each qubit individually
+                for qubit in op[1]:
+                    noisy_circuit.add_kraus_channel(kraus_ops, qubit)
+            else:
+                noisy_circuit.add_kraus_channel(kraus_ops, op[1])
+                
+    return noisy_circuit
