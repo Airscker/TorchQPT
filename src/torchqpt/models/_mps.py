@@ -1,10 +1,8 @@
 import torch
 from typing import List, Optional, Union
-import numpy as np # Not strictly needed if using torch.prod, but was in original
+from ._base import BaseModel, COMPLEX_DTYPE
 
-COMPLEX_DTYPE = torch.complex64
-
-class MPS:
+class MPS(BaseModel):
     """
     Represents a Matrix Product State (MPS).
 
@@ -15,15 +13,13 @@ class MPS:
     - Site N-1 (rightmost): `(left_bond_dim, physical_dim)` - Rank 2
 
     Attributes:
-        site_tensors (List[torch.Tensor]): The list of tensors defining the MPS.
+        site_tensors (torch.nn.ParameterList): The list of tensors defining the MPS.
         num_sites (int): The number of sites (length of the MPS chain).
         physical_dims (List[int]): List of physical dimensions for each site.
         bond_dims (List[int]): List of bond dimensions. `bond_dims[i]` is the
             dimension of the bond connecting site `i` and site `i+1`. Length is `num_sites - 1`.
         center_site (Optional[int]): If the MPS is in a canonical form, this indicates
             the site of the orthogonality center. Defaults to None.
-        _device (torch.device): The PyTorch device of the MPS tensors.
-        _dtype (torch.dtype): The PyTorch dtype of the MPS tensors.
     """
     def __init__(self, site_tensors: List[torch.Tensor], center_site: Optional[int] = None):
         """
@@ -46,75 +42,72 @@ class MPS:
                         is out of range.
             TypeError: If any element in `site_tensors` is not a PyTorch Tensor.
         """
+        super().__init__(site_tensors=site_tensors, center_site=center_site)
+        
         if not site_tensors:
             raise ValueError("site_tensors list cannot be empty.")
 
-        self.site_tensors: List[torch.Tensor] = site_tensors
+        # Register site tensors as parameters
+        self.site_tensors = torch.nn.ParameterList([
+            torch.nn.Parameter(tensor) for tensor in site_tensors
+        ])
+        
         self.num_sites: int = len(site_tensors)
+        self.center_site: Optional[int] = center_site
 
         if not all(isinstance(t, torch.Tensor) for t in self.site_tensors):
             raise TypeError("All elements in site_tensors must be PyTorch Tensors.")
 
-        self._device: torch.device = self.site_tensors[0].device
-        self._dtype: torch.dtype = self.site_tensors[0].dtype
-
         # Check for consistent device and dtype across all tensors
-        # Note: This was previously checking all(t.device == self._device and t.dtype == self._dtype).
-        # A more robust way to check if there are multiple devices/dtypes:
         devices = {t.device for t in self.site_tensors}
         dtypes = {t.dtype for t in self.site_tensors}
-        if len(devices) > 1 or len(dtypes) > 1:
-            # Providing more info in the error message
-            device_list_str = [str(d) for d in devices]
-            dtype_list_str = [str(d) for d in dtypes]
-            raise ValueError(
-                f"All site_tensors must have the same device and dtype. "
-                f"Found devices: {device_list_str}, dtypes: {dtype_list_str}"
-            )
+        if len(devices) > 1:
+            raise ValueError(f"All tensors must be on the same device. Found devices: {devices}")
+        if len(dtypes) > 1:
+            raise ValueError(f"All tensors must have the same dtype. Found dtypes: {dtypes}")
 
+        # Validate tensor shapes and bond dimensions
         self.physical_dims: List[int] = []
         self.bond_dims: List[int] = []
 
-        for i, t in enumerate(self.site_tensors):
-            if i == 0:
-                if t.ndim != 2:
-                    raise ValueError(f"Tensor at site 0 must be rank 2 (phys, D_0), got rank {t.ndim} with shape {t.shape}.")
-                self.physical_dims.append(t.shape[0])
-                if self.num_sites > 1:
-                    self.bond_dims.append(t.shape[1])
-            elif i == self.num_sites - 1:
-                if t.ndim != 2:
-                    raise ValueError(f"Tensor at site {i} (rightmost) must be rank 2 (D_{i-1}, phys), got rank {t.ndim} with shape {t.shape}.")
-                self.physical_dims.append(t.shape[1])
-                if self.num_sites > 1 and t.shape[0] != self.bond_dims[-1]: # Check bond only if num_sites > 1
-                    raise ValueError(
-                        f"Left bond dimension mismatch at site {i}: tensor shape {t.shape[0]} vs previous right bond {self.bond_dims[-1]}"
-                    )
-            else:
-                if t.ndim != 3:
-                    raise ValueError(f"Tensor at site {i} must be rank 3 (D_{i-1}, phys, D_i), got rank {t.ndim} with shape {t.shape}.")
-                self.physical_dims.append(t.shape[1])
-                if t.shape[0] != self.bond_dims[-1]:
-                     raise ValueError(
-                        f"Left bond dimension mismatch at site {i}: tensor shape {t.shape[0]} vs previous right bond {self.bond_dims[-1]}"
-                    )
-                self.bond_dims.append(t.shape[2])
+        for i, tensor in enumerate(self.site_tensors):
+            if i == 0:  # Leftmost site
+                if tensor.ndim != 2:
+                    raise ValueError(f"Leftmost tensor must be rank 2, got rank {tensor.ndim}")
+                self.physical_dims.append(tensor.shape[0])
+                self.bond_dims.append(tensor.shape[1])
+            elif i == self.num_sites - 1:  # Rightmost site
+                if tensor.ndim != 2:
+                    raise ValueError(f"Rightmost tensor must be rank 2, got rank {tensor.ndim}")
+                if tensor.shape[0] != self.bond_dims[-1]:
+                    raise ValueError(f"Bond dimension mismatch at site {i}")
+                self.physical_dims.append(tensor.shape[1])
+            else:  # Middle sites
+                if tensor.ndim != 3:
+                    raise ValueError(f"Middle tensor must be rank 3, got rank {tensor.ndim}")
+                if tensor.shape[0] != self.bond_dims[-1]:
+                    raise ValueError(f"Bond dimension mismatch at site {i}")
+                self.physical_dims.append(tensor.shape[1])
+                self.bond_dims.append(tensor.shape[2])
 
-        if center_site is not None:
-            if not (0 <= center_site < self.num_sites):
-                raise ValueError(f"center_site index {center_site} out of range [0, {self.num_sites-1}]")
-        self.center_site: Optional[int] = center_site
+        if center_site is not None and not (0 <= center_site < self.num_sites):
+            raise ValueError(f"center_site {center_site} out of range [0, {self.num_sites-1}]")
 
+    def forward(self, input_state: torch.Tensor) -> torch.Tensor:
+        """
+        Apply the MPS to an input state.
 
-    @property
-    def device(self) -> torch.device:
-        """The PyTorch device on which the MPS tensors are stored."""
-        return self._device
+        Args:
+            input_state (torch.Tensor): Input state tensor.
 
-    @property
-    def dtype(self) -> torch.dtype:
-        """The PyTorch dtype of the MPS tensors."""
-        return self._dtype
+        Returns:
+            torch.Tensor: Output state after applying the MPS.
+        """
+        # Contract the input state with the MPS tensors
+        result = input_state
+        for tensor in self.site_tensors:
+            result = torch.tensordot(result, tensor, dims=([-1], [0]))
+        return result
 
     @staticmethod
     def product_state(physical_states: List[torch.Tensor],
@@ -227,7 +220,6 @@ class MPS:
         # The result of the final tensordot should already be a 0-dim tensor (scalar).
         return final_val.real if self.dtype.is_complex else final_val
 
-
     def get_tensor(self, site: int) -> torch.Tensor:
         """
         Retrieves the tensor at a specific site in the MPS.
@@ -313,9 +305,12 @@ class MPS:
             return tensor.shape[2]
 
     def __repr__(self) -> str:
-        return (f"MPS(num_sites={self.num_sites}, physical_dims={self.physical_dims}, "
-                f"bond_dims={self.bond_dims}, center_site={self.center_site}, "
-                f"device='{self.device}', dtype={self.dtype})")
+        _str = super().__repr__()
+        _str += f"num_sites={self.num_sites}, "
+        _str += f"physical_dims={self.physical_dims}, "
+        _str += f"bond_dims={self.bond_dims}, "
+        _str += f"center_site={self.center_site})"
+        return _str
 
     def __len__(self) -> int:
         """Returns the number of sites in the MPS."""

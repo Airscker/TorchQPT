@@ -10,4 +10,4 @@ from .circuits._circuits import QuantumCircuit
 from .simulation import CircuitSimulator
 from .noise import *
 from .tomography import *
-from .tensor_network import MPS
+from .models import *

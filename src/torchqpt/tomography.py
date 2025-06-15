@@ -2,11 +2,7 @@ import torch
 from typing import List, Dict, Tuple, Optional, Union # Added Union for device type hint
 import numpy as np
 import itertools
-
-try:
-    from .states import DensityMatrix
-except ImportError:
-    from states import DensityMatrix
+from .states import DensityMatrix
 
 
 COMPLEX_DTYPE = torch.complex64

@@ -1,6 +1,6 @@
-# PyTorch-PastaQ
+# TorchQPT
 
-PyTorch-PastaQ is a Python library designed for quantum information processing tasks, leveraging PyTorch for tensor operations and potential GPU acceleration. It provides tools for quantum circuit simulation, modeling noisy quantum systems, performing quantum state tomography, and working with basic tensor network structures like Matrix Product States (MPS).
+TorchQPT is a Python library designed for quantum information processing tasks, leveraging PyTorch for tensor operations and potential GPU acceleration. It provides tools for quantum circuit simulation, modeling noisy quantum systems, performing quantum state tomography, and working with basic tensor network structures like Matrix Product States (MPS).
 
 This library is a PyTorch-based adaptation inspired by features found in quantum simulation frameworks, aiming to offer a flexible and intuitive platform for researchers and developers in quantum computing.
 
