@@ -74,17 +74,23 @@ def depolarizing_channel(p: float, device: Union[str, torch.device] = 'cpu') -> 
     Generate Kraus operators for the depolarizing channel.
     
     Args:
-        p (float): Error probability
+        p (float): Error probability (must be between 0 and 1)
         device (Union[str, torch.device]): Device to place tensors on
         
     Returns:
         List[torch.Tensor]: List of Kraus operators
+        
+    Raises:
+        ValueError: If p is not between 0 and 1
     """
+    if not (0 <= p <= 1):
+        raise ValueError(f"Depolarizing probability p ({p}) must be between 0 and 1.")
+        
     dev = torch.device(device)
-    sqrt_p = torch.sqrt(torch.tensor(p/3, device=dev))
+    sqrt_p = torch.sqrt(torch.tensor(p/3, dtype=COMPLEX_DTYPE, device=dev))
     
     # Identity operator
-    K0 = torch.sqrt(torch.tensor(1 - p, device=dev)) * torch.eye(2, device=dev)
+    K0 = torch.sqrt(torch.tensor(1 - p, dtype=COMPLEX_DTYPE, device=dev)) * torch.eye(2, dtype=COMPLEX_DTYPE, device=dev)
     
     # Pauli operators
     K1 = sqrt_p * torch.tensor([[0, 1], [1, 0]], dtype=COMPLEX_DTYPE, device=dev)  # X
@@ -99,12 +105,18 @@ def amplitude_damping_channel(gamma: float, device: Union[str, torch.device] = '
     Generate Kraus operators for the amplitude damping channel.
     
     Args:
-        gamma (float): Damping rate
+        gamma (float): Damping rate (must be between 0 and 1)
         device (Union[str, torch.device]): Device to place tensors on
         
     Returns:
         List[torch.Tensor]: List of Kraus operators
+        
+    Raises:
+        ValueError: If gamma is not between 0 and 1
     """
+    if not (0 <= gamma <= 1):
+        raise ValueError(f"Damping probability gamma ({gamma}) must be between 0 and 1.")
+        
     dev = torch.device(device)
     
     # Main operator
@@ -121,19 +133,25 @@ def phase_damping_channel(gamma: float, device: Union[str, torch.device] = 'cpu'
     Generate Kraus operators for the phase damping channel.
     
     Args:
-        gamma (float): Damping rate
+        gamma (float): Damping rate (must be between 0 and 1)
         device (Union[str, torch.device]): Device to place tensors on
         
     Returns:
         List[torch.Tensor]: List of Kraus operators
+        
+    Raises:
+        ValueError: If gamma is not between 0 and 1
     """
+    if not (0 <= gamma <= 1):
+        raise ValueError(f"Dephasing probability gamma ({gamma}) must be between 0 and 1.")
+        
     dev = torch.device(device)
     
-    # Main operator
-    K0 = torch.tensor([[1, 0], [0, np.sqrt(1 - gamma)]], dtype=COMPLEX_DTYPE, device=dev)
+    # Main operator: K0 = sqrt(1-gamma) * I
+    K0 = torch.sqrt(torch.tensor(1 - gamma, dtype=COMPLEX_DTYPE, device=dev)) * _I()
     
-    # Damping operator
-    K1 = torch.tensor([[0, 0], [0, np.sqrt(gamma)]], dtype=COMPLEX_DTYPE, device=dev)
+    # Damping operator: K1 = sqrt(gamma) * Z
+    K1 = torch.sqrt(torch.tensor(gamma, dtype=COMPLEX_DTYPE, device=dev)) * _Z()
     
     return [K0, K1]
 

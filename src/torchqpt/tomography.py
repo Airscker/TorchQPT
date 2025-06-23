@@ -41,7 +41,7 @@ def get_basis_projectors_single_qubit(basis: str, device: Union[str, torch.devic
 
     Returns:
         Tuple[torch.Tensor, torch.Tensor]: A tuple `(P_0, P_1)` containing the two
-            projector matrices.
+            projector matrices, each with trace 1.
             - For "Z" basis: `P_0 = |0><0|, P_1 = |1><1|`.
             - For "X" basis: `P_0 = |+><+|, P_1 = |-><-|`.
             - For "Y" basis: `P_0 = |+i><+i|, P_1 = |-i><-i|`.
@@ -106,8 +106,7 @@ def simulate_measurement_probabilities(state_tensor: torch.Tensor,
 
 
 def qst_linear_inversion_single_qubit(measurement_data: Dict[str, List[float]],
-                                      device: Union[str, torch.device] = 'cpu'
-                                      ) -> DensityMatrix:
+                                      device: Union[str, torch.device] = 'cpu') -> DensityMatrix:
     """
     Performs single-qubit Quantum State Tomography (QST) using Linear Inversion.
 

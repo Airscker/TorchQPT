@@ -2,85 +2,66 @@ import torch
 import numpy as np
 from torchqpt.models import LPDO
 from torchqpt.training import QPTTrainer
-from torchqpt.data import (
-    generate_input_states,
-    generate_measurement_operators,
-    evaluate_channel_reconstruction
-)
+from torchqpt.data import generate_input_states, generate_measurement_operators
 
 def main():
-    # Set random seed for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
     
-    # Model parameters
-    num_qubits = 2
+    # Parameters
+    num_qubits = 1
     bond_dim = 2
-    kraus_dim = 2
+    kraus_dim = 2 # Use > 1 to have capacity for noisy channels
     
-    # Training parameters
     num_train_samples = 1000
     num_val_samples = 200
-    batch_size = 800  # From paper
-    learning_rate = 0.005  # From paper
-    num_epochs = 100
-    patience = 10
+    batch_size = 200
+    learning_rate = 0.01
+    num_epochs = 50
+    patience = 5
     
-    # Initialize model using random initialization
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # 1. Generate dummy data (in a real scenario, this comes from a true channel)
+    # This example only tests if the training loop runs.
+    train_inputs = generate_input_states(num_qubits, num_train_samples, device)
+    train_measurements = generate_measurement_operators(num_qubits, num_train_samples, device)
+    train_data = list(zip(train_inputs, train_measurements))
+
+    val_inputs = generate_input_states(num_qubits, num_val_samples, device)
+    val_measurements = generate_measurement_operators(num_qubits, num_val_samples, device)
+    val_data = list(zip(val_inputs, val_measurements))
+
+    # 2. Initialize model
     model = LPDO.random_initialization(
         num_sites=num_qubits,
-        physical_dim=2,  # qubits
+        physical_dim=2,
         bond_dim=bond_dim,
-        kraus_dim=kraus_dim
+        kraus_dim=kraus_dim,
+        device=device
     )
     
-    # Generate training data
-    print("Generating training data...")
-    train_input_states = generate_input_states(num_qubits, num_train_samples)
-    train_measurements = generate_measurement_operators(num_qubits, num_train_samples)
-    
-    # Generate validation data
-    print("Generating validation data...")
-    val_input_states = generate_input_states(num_qubits, num_val_samples)
-    val_measurements = generate_measurement_operators(num_qubits, num_val_samples)
-    
-    # Create trainer
+    # 3. Create trainer
     trainer = QPTTrainer(
         model=model,
         learning_rate=learning_rate,
-        regularization_weight=1.0
+        regularization_weight=0.1 
     )
     
-    # Train model
-    print("Starting training...")
+    # 4. Train model
+    print("Starting training loop test...")
     history = trainer.train(
-        train_data=list(zip(train_input_states, train_measurements, [1.0] * num_train_samples)),
-        val_data=list(zip(val_input_states, val_measurements, [1.0] * num_val_samples)),
+        train_data=train_data,
+        val_data=val_data,
         num_epochs=num_epochs,
         batch_size=batch_size,
         patience=patience
     )
+    print("Training finished.")
     
-    # Save model
-    trainer.save_model("qpt_model.pt")
+    # 5. Save model
+    trainer.save_model("qpt_model_test.pt")
+    print("Model saved to qpt_model_test.pt")
     
-    # Evaluate reconstruction
-    print("\nEvaluating channel reconstruction...")
-    fidelity = evaluate_channel_reconstruction(model, num_qubits)
-    print(f"Channel reconstruction fidelity: {fidelity:.4f}")
-    
-    # Plot training history
-    import matplotlib.pyplot as plt
-    
-    plt.figure(figsize=(10, 5))
-    plt.plot(history['train_losses'], label='Train Loss')
-    plt.plot(history['val_losses'], label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training History')
-    plt.legend()
-    plt.savefig('training_history.png')
-    plt.close()
-
 if __name__ == "__main__":
-    main() 
+    main()

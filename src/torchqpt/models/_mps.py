@@ -21,6 +21,14 @@ class MPS(BaseModel):
         center_site (Optional[int]): If the MPS is in a canonical form, this indicates
             the site of the orthogonality center. Defaults to None.
     """
+    @property
+    def device(self):
+        return self.site_tensors[0].device if self.site_tensors else None
+
+    @property
+    def dtype(self):
+        return self.site_tensors[0].dtype if self.site_tensors else None
+
     def __init__(self, site_tensors: List[torch.Tensor], center_site: Optional[int] = None):
         """
         Initializes a Matrix Product State (MPS).
@@ -53,7 +61,7 @@ class MPS(BaseModel):
         ])
         
         self.num_sites: int = len(site_tensors)
-        self.center_site: Optional[int] = center_site
+        self._center_site: Optional[int] = center_site
 
         if not all(isinstance(t, torch.Tensor) for t in self.site_tensors):
             raise TypeError("All elements in site_tensors must be PyTorch Tensors.")
@@ -62,9 +70,9 @@ class MPS(BaseModel):
         devices = {t.device for t in self.site_tensors}
         dtypes = {t.dtype for t in self.site_tensors}
         if len(devices) > 1:
-            raise ValueError(f"All tensors must be on the same device. Found devices: {devices}")
+            raise ValueError(f"All site_tensors must have the same device and dtype. Found devices: {devices}")
         if len(dtypes) > 1:
-            raise ValueError(f"All tensors must have the same dtype. Found dtypes: {dtypes}")
+            raise ValueError(f"All site_tensors must have the same device and dtype. Found dtypes: {dtypes}")
 
         # Validate tensor shapes and bond dimensions
         self.physical_dims: List[int] = []
@@ -73,25 +81,36 @@ class MPS(BaseModel):
         for i, tensor in enumerate(self.site_tensors):
             if i == 0:  # Leftmost site
                 if tensor.ndim != 2:
-                    raise ValueError(f"Leftmost tensor must be rank 2, got rank {tensor.ndim}")
+                    raise ValueError(f"Tensor at site 0 must be rank 2, got rank {tensor.ndim}")
                 self.physical_dims.append(tensor.shape[0])
-                self.bond_dims.append(tensor.shape[1])
+                if self.num_sites > 1:
+                    self.bond_dims.append(tensor.shape[1])
             elif i == self.num_sites - 1:  # Rightmost site
                 if tensor.ndim != 2:
-                    raise ValueError(f"Rightmost tensor must be rank 2, got rank {tensor.ndim}")
+                    raise ValueError(f"Tensor at site {i} (rightmost) must be rank 2")
                 if tensor.shape[0] != self.bond_dims[-1]:
-                    raise ValueError(f"Bond dimension mismatch at site {i}")
+                    raise ValueError(f"Left bond dimension mismatch at site {i}")
                 self.physical_dims.append(tensor.shape[1])
             else:  # Middle sites
                 if tensor.ndim != 3:
-                    raise ValueError(f"Middle tensor must be rank 3, got rank {tensor.ndim}")
+                    raise ValueError(f"Tensor at site {i} must be rank 3, got rank {tensor.ndim}")
                 if tensor.shape[0] != self.bond_dims[-1]:
-                    raise ValueError(f"Bond dimension mismatch at site {i}")
+                    raise ValueError(f"Left bond dimension mismatch at site {i}")
                 self.physical_dims.append(tensor.shape[1])
                 self.bond_dims.append(tensor.shape[2])
 
         if center_site is not None and not (0 <= center_site < self.num_sites):
             raise ValueError(f"center_site {center_site} out of range [0, {self.num_sites-1}]")
+
+    @property
+    def center_site(self):
+        return self._center_site
+
+    @center_site.setter
+    def center_site(self, value):
+        if value is not None and not (0 <= value < self.num_sites):
+            raise ValueError(f"center_site {value} out of range [0, {self.num_sites-1}]")
+        self._center_site = value
 
     def forward(self, input_state: torch.Tensor) -> torch.Tensor:
         """
@@ -174,51 +193,38 @@ class MPS(BaseModel):
             torch.Tensor: A scalar tensor representing the squared norm of the MPS.
                           The dtype of the returned tensor is real.
         """
-        if self.num_sites == 0: # Should be caught by __init__
-            return torch.tensor(0.0, device=self.device, dtype=self.dtype.real if self.dtype.is_complex else self.dtype)
-
+        if self.num_sites == 0:
+            return torch.tensor(0.0, device=self.device, dtype=self.dtype)
+        # Special case: product state (all bond dims 1)
+        if all(bd == 1 for bd in self.bond_dims):
+            prod = torch.tensor(1.0, device=self.device, dtype=self.dtype)
+            for t in self.site_tensors:
+                prod = prod * (t.abs() ** 2).sum()
+            if self.dtype.is_complex:
+                return prod.real
+            else:
+                return prod
+        # General MPS contraction
         op0 = self.site_tensors[0]
-        # Contract physical leg of M[0] with its conjugate: M[0]* M[0]
-        # M[0] is (P0, D0). M[0].conj() is (P0, D0_c). Sum over P0.
-        # Result 'env' has shape (D0_c, D0)
         env = torch.tensordot(op0.conj(), op0, dims=([0],[0]))
-
         if self.num_sites == 1:
-            # env has shape (D0_c, D0). For the norm to be scalar, we need to trace if D0 > 1.
-            # If D0 = 1 (e.g. from product_state for a single site), env is (1,1).
-            # trace of (1,1) matrix is just the element.
-            # The norm^2 is Tr(M_dag M). M_dag M is what 'env' represents here.
             scalar_norm_sq = torch.trace(env)
-            return scalar_norm_sq.real if self.dtype.is_complex else scalar_norm_sq
-
-        # For num_sites > 1
-        for i in range(1, self.num_sites - 1): # Middle tensors
-            op_i = self.site_tensors[i] # Shape (D_left, P_i, D_right)
-            # env has shape (D_left_c, D_left) from previous site.
-            # C = tensordot(env, op_i, dims=([1],[0])) contracts D_left of env with D_left of op_i.
-            # C has shape (D_left_c, P_i, D_right)
+            if self.dtype.is_complex:
+                return scalar_norm_sq.real
+            else:
+                return scalar_norm_sq
+        for i in range(1, self.num_sites - 1):
+            op_i = self.site_tensors[i]
             C = torch.tensordot(env, op_i, dims=([1],[0]))
-            # env = tensordot(op_i.conj(), C, dims=([0,1],[0,1])) contracts D_left_c and P_i.
-            # op_i.conj() has shape (D_left_c, P_i, D_right_c)
-            # C has shape (D_left_c, P_i, D_right)
-            # Result env has shape (D_right_c, D_right)
-            env = torch.tensordot(op_i.conj(), C, dims=([0,1], [0,1]))
-
-        # Rightmost tensor M[N-1]
-        op_last = self.site_tensors[self.num_sites - 1] # Shape (D_left, P_last)
-        # env has shape (D_left_c, D_left)
-        # C = tensordot(env, op_last, dims=([1],[0])) contracts D_left of env with D_left of op_last.
-        # C has shape (D_left_c, P_last)
-        C = torch.tensordot(env, op_last, dims=([1],[0]))
-        # final_val = tensordot(C, op_last.conj(), dims=([0,1],[0,1])) contracts D_left_c and P_last.
-        # C has shape (D_left_c, P_last)
-        # op_last.conj() has shape (D_left_c, P_last)
-        # Result final_val is scalar
-        final_val = torch.tensordot(C, op_last.conj(), dims=([0,1],[0,1])) # Sum over all remaining indices
-
-        # Squeeze to ensure scalar output if all bond dims were 1.
-        # The result of the final tensordot should already be a 0-dim tensor (scalar).
-        return final_val.real if self.dtype.is_complex else final_val
+            C = torch.tensordot(C, op_i.conj(), dims=([1,2],[0,1]))
+            env = C
+        opN = self.site_tensors[-1]
+        C = torch.tensordot(env, opN, dims=([1],[0]))
+        final_val = torch.tensordot(C, opN.conj(), dims=([0,1],[0,1]))
+        if self.dtype.is_complex:
+            return final_val.real
+        else:
+            return final_val
 
     def get_tensor(self, site: int) -> torch.Tensor:
         """
